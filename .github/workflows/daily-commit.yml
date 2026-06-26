@@ -1,0 +1,53 @@
+name: Daily Commit
+
+on:
+  schedule:
+    # UTC 22:00 = 北京时间 06:00，每天一次
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+
+jobs:
+  commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Git
+        run: |
+          git config user.name "ssldxss"
+          git config user.email "lusiheng080229@outlook.com"
+
+      - name: Decide and Commit
+        run: |
+          # 基于日期 hash 决定是否提交，约 80% 的天数
+          HASH=$(echo -n "$(date +%Y%m%d)" | md5sum | head -c 4)
+          VAL=$((16#${HASH} % 100))
+
+          if [ $VAL -ge 80 ]; then
+            echo "Skip today (val=$VAL >= 80)"
+            exit 0
+          fi
+
+          echo "Commit today (val=$VAL < 80)"
+
+          # 大部分天 1 次，少部分 2-3 次
+          HASH2=$(echo -n "$(date +%Y%m%d%H)" | md5sum | head -c 4)
+          VAL2=$((16#${HASH2} % 100))
+
+          if [ $VAL2 -lt 75 ]; then
+            N=1
+          elif [ $VAL2 -lt 92 ]; then
+            N=2
+          else
+            N=3
+          fi
+
+          for i in $(seq 1 $N); do
+            echo "$(date -u +'%Y-%m-%d %H:%M:%S UTC') - auto log #$i" >> daily-log.txt
+            git add daily-log.txt
+            git commit -m "Daily update $(date +%Y-%m-%d) [$i/$N]"
+          done
+
+      - name: Push
+        run: git push
